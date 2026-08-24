@@ -14,7 +14,7 @@ export const listMovies = async (_req: Request, res: Response) => {
 
 export const getMovie = async (req: Request, res: Response) => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id;
     const movie = await prisma.movie.findUnique({ where: { id } });
     if (!movie) {
       res.status(404).json({ message: "Movie not found" });

@@ -3,7 +3,7 @@ import morgan from "morgan";
 import cors from "cors";
 import config from "./config.js";
 import v1 from "./routes/v1/index.js";
-const pool = require("./db");
+import pool from "./db.js";
 export const createServer = () => {
     const app = express();
     app

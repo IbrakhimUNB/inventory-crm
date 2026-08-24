@@ -17,8 +17,8 @@
 
 import * as runtime from "@prisma/client/runtime/index-browser"
 
-export type * from '../models'
-export type * from './prismaNamespace'
+export type * from '../models.js'
+export type * from './prismaNamespace.js'
 
 export const Decimal = runtime.Decimal
 
@@ -52,8 +52,11 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   User: 'User',
-  Post: 'Post',
-  Movie: 'Movie'
+  Movie: 'Movie',
+  WatchlistItem: 'WatchlistItem',
+  SpareMotor: 'SpareMotor',
+  Tire: 'Tire',
+  Other: 'Other'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -74,8 +77,8 @@ export type TransactionIsolationLevel = (typeof TransactionIsolationLevel)[keyof
 
 export const UserScalarFieldEnum = {
   id: 'id',
-  email: 'email',
   name: 'name',
+  email: 'email',
   password: 'password',
   createdAt: 'createdAt'
 } as const
@@ -83,24 +86,77 @@ export const UserScalarFieldEnum = {
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
 
 
-export const PostScalarFieldEnum = {
-  id: 'id',
-  title: 'title',
-  content: 'content',
-  published: 'published',
-  authorId: 'authorId'
-} as const
-
-export type PostScalarFieldEnum = (typeof PostScalarFieldEnum)[keyof typeof PostScalarFieldEnum]
-
-
 export const MovieScalarFieldEnum = {
   id: 'id',
   title: 'title',
+  overview: 'overview',
+  releaseYear: 'releaseYear',
+  genres: 'genres',
+  runtime: 'runtime',
+  posterUrl: 'posterUrl',
+  createdBy: 'createdBy',
   createdAt: 'createdAt'
 } as const
 
 export type MovieScalarFieldEnum = (typeof MovieScalarFieldEnum)[keyof typeof MovieScalarFieldEnum]
+
+
+export const WatchlistItemScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  movieId: 'movieId',
+  status: 'status',
+  rating: 'rating',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type WatchlistItemScalarFieldEnum = (typeof WatchlistItemScalarFieldEnum)[keyof typeof WatchlistItemScalarFieldEnum]
+
+
+export const SpareMotorScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  carModel: 'carModel',
+  category: 'category',
+  price: 'price',
+  km: 'km',
+  description: 'description',
+  photo: 'photo',
+  createdAt: 'createdAt'
+} as const
+
+export type SpareMotorScalarFieldEnum = (typeof SpareMotorScalarFieldEnum)[keyof typeof SpareMotorScalarFieldEnum]
+
+
+export const TireScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  size: 'size',
+  category: 'category',
+  price: 'price',
+  description: 'description',
+  photo: 'photo',
+  createdAt: 'createdAt',
+  quantity: 'quantity'
+} as const
+
+export type TireScalarFieldEnum = (typeof TireScalarFieldEnum)[keyof typeof TireScalarFieldEnum]
+
+
+export const OtherScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  carModel: 'carModel',
+  category: 'category',
+  price: 'price',
+  description: 'description',
+  photo: 'photo',
+  createdAt: 'createdAt'
+} as const
+
+export type OtherScalarFieldEnum = (typeof OtherScalarFieldEnum)[keyof typeof OtherScalarFieldEnum]
 
 
 export const SortOrder = {

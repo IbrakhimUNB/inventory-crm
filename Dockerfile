@@ -10,4 +10,5 @@ COPY . .
 RUN npm run build
 
 EXPOSE 3140
+CMD ["npm", "run", "seed:movies"]
 CMD ["npm", "start"]

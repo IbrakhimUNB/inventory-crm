@@ -8,7 +8,10 @@
  *
  * 🟢 You can import this file directly.
  */
-export type * from './models/User'
-export type * from './models/Post'
-export type * from './models/Movie'
-export type * from './commonInputTypes'
+export type * from './models/User.js'
+export type * from './models/Movie.js'
+export type * from './models/WatchlistItem.js'
+export type * from './models/SpareMotor.js'
+export type * from './models/Tire.js'
+export type * from './models/Other.js'
+export type * from './commonInputTypes.js'

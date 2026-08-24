@@ -1,12 +1,11 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
 }
 
 datasource db {
@@ -14,25 +13,97 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
-  password  String
-  createdAt DateTime @default(now())
-  posts     Post[]
-}
+  id       String @id @default(uuid())
+  name     String
+  email    String @unique
+  password String
 
-model Post {
-  id        Int     @id @default(autoincrement())
-  title     String
-  content   String?
-  published Boolean @default(false)
-  author    User    @relation(fields: [authorId], references: [id])
-  authorId  Int
+  createdAt DateTime @default(now())
+
+  // Relations
+  movies         Movie[]         @relation("MovieCreator")
+  watchlistItems WatchlistItem[]
 }
 
 model Movie {
-  id        Int      @id @default(autoincrement())
-  title     String
-  createdAt DateTime @default(now())
+  id          String   @id @default(uuid())
+  title       String
+  overview    String?
+  releaseYear Int
+  genres      String[] @default([])
+  runtime     Int?
+  posterUrl   String?
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  creator        User            @relation("MovieCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  watchlistItems WatchlistItem[]
+}
+
+model WatchlistItem {
+  id        String          @id @default(uuid())
+  userId    String
+  movieId   String
+  status    WatchlistStatus @default(PLANNED)
+  rating    Int?
+  notes     String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @default(now())
+
+  // Relations
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, movieId])
+}
+
+enum WatchlistStatus {
+  PLANNED
+  WATCHING
+  COMPLETED
+  DROPPED
+}
+
+// --- New tables for spare parts, tires, and other items ---
+// All now store actual photo binary data (Bytes) instead of a URL string.
+
+model SpareMotor {
+  id          String   @id @default(uuid())
+  name        String
+  carModel    String
+  category    Category
+  price       Int
+  km          Int
+  description String
+  photo       Bytes // binary image data
+  createdAt   DateTime @default(now())
+}
+
+model Tire {
+  id          String   @id @default(uuid())
+  name        String
+  size        Int
+  category    Category
+  price       Int
+  description String
+  photo       Bytes // binary image data
+  createdAt   DateTime @default(now())
+  quantity    Int
+}
+
+model Other {
+  id          String   @id @default(uuid())
+  name        String
+  carModel    String
+  category    Category
+  price       Int
+  description String
+  photo       Bytes // binary image data
+  createdAt   DateTime @default(now())
+}
+
+enum Category {
+  Tire
+  Other
+  Motor
 }

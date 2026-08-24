@@ -1,6 +1,7 @@
 version: "3"
 
 services:
+  #psql -h localhost -p 5432 -U user123 -d db123
   db:
     image: postgres
     environment:
