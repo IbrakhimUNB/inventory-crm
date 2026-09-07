@@ -34,14 +34,13 @@ const detectImageType = (bytes: Uint8Array): string => {
   return "application/octet-stream";
 };
 
-const getSpareMotors = async (req: Request, res: Response) => {
+const getOtherSpares = async (req: Request, res: Response) => {
   try {
-    const spareMotors = await prisma.spareMotor.findMany({
+    const items = await prisma.other.findMany({
       orderBy: { createdAt: "desc" },
     });
 
-    // Return a link to each stored photo rather than embedding the image bytes.
-    const results = spareMotors.map(({ photo, ...item }) => ({
+    const results = items.map(({ photo, ...item }) => ({
       ...item,
       photoUrl: `${req.protocol}://${req.get("host")}${req.baseUrl}/${item.id}/photo`,
     }));
@@ -49,119 +48,107 @@ const getSpareMotors = async (req: Request, res: Response) => {
     res.status(200).json({
       status: "success",
       data: {
-        spareMotors: results,
+        otherSpares: results,
       },
     });
   } catch (error) {
-    console.error("Error fetching spare motors:", error);
-    res.status(500).json({ error: "Failed to fetch spare motors" });
+    console.error("Error fetching other spare items:", error);
+    res.status(500).json({ error: "Failed to fetch other spare items" });
   }
 };
 
-/** Stream the stored binary photo bytes for a single spare motor. */
-const getSpareMotorPhoto = async (req: Request, res: Response) => {
+/** Stream the stored binary photo bytes for a single other spare item. */
+const getOtherSparePhoto = async (req: Request, res: Response) => {
   try {
-    const spareMotor = await prisma.spareMotor.findUnique({
+    const item = await prisma.other.findUnique({
       where: { id: req.params.id },
       select: { photo: true },
     });
 
-    if (!spareMotor) {
-      res.status(404).json({ error: "Spare motor not found" });
+    if (!item) {
+      res.status(404).json({ error: "Other spare item not found" });
       return;
     }
 
-    const buffer = Buffer.from(spareMotor.photo);
-    res.setHeader("Content-Type", detectImageType(spareMotor.photo));
+    const buffer = Buffer.from(item.photo);
+    res.setHeader("Content-Type", detectImageType(item.photo));
     res.setHeader("Content-Length", buffer.length);
-    // Let clients cache the image; it is immutable per row id.
     res.setHeader("Cache-Control", "public, max-age=86400");
     res.send(buffer);
   } catch (error) {
-    console.error("Error fetching spare motor photo:", error);
-    res.status(500).json({ error: "Failed to fetch spare motor photo" });
+    console.error("Error fetching other spare photo:", error);
+    res.status(500).json({ error: "Failed to fetch other spare photo" });
   }
 };
 
-const addSpareMotor = async (req: Request, res: Response) => {
+const addOtherSpare = async (req: Request, res: Response) => {
   try {
-    const { name, carModel, category, price, km, description } = req.body;
+    const { name, carModel, category, price, description } = req.body;
     const photoFile = (req as MulterRequest).file;
 
-    // multipart/form-data: the photo is submitted as an uploaded `photo` file
     if (!photoFile) {
       res.status(400).json({ error: "A photo image file is required" });
       return;
     }
 
     // Check if already added (unique by name)
-    const existing = await prisma.spareMotor.findFirst({
+    const existing = await prisma.other.findFirst({
       where: { name: String(name).toUpperCase() },
     });
 
     if (existing) {
       res
         .status(400)
-        .json({ error: "Spare motor with this name already exists" });
+        .json({ error: "Other spare item with this name already exists" });
       return;
     }
 
-    const spareMotor = await prisma.spareMotor.create({
+    const item = await prisma.other.create({
       data: {
         name: String(name).toUpperCase(),
         carModel: String(carModel).toUpperCase(),
         category: category as Category,
         price: Number(price),
-        km: Number(km),
         description,
         photo: fileToPhotoBytes(photoFile.buffer),
       },
     });
 
+    const { photo: _photo, ...rest } = item;
     res.status(201).json({
       status: "success",
       data: {
-        spareMotor: {
-          id: spareMotor.id,
-          name: spareMotor.name,
-          carModel: spareMotor.carModel,
-          category: spareMotor.category,
-          price: spareMotor.price,
-          km: spareMotor.km,
-          description: spareMotor.description,
-          createdAt: spareMotor.createdAt,
-          photoUrl: `${req.protocol}://${req.get("host")}${req.baseUrl}/${spareMotor.id}/photo`,
+        otherSpare: {
+          ...rest,
+          photoUrl: `${req.protocol}://${req.get("host")}${req.baseUrl}/${item.id}/photo`,
         },
       },
     });
   } catch (error) {
-    console.error("Error adding spare motor:", error);
-    res.status(500).json({ error: "Failed to add spare motor" });
+    console.error("Error adding other spare:", error);
+    res.status(500).json({ error: "Failed to add other spare" });
   }
 };
 
-const updateSpareMotor = async (req: Request, res: Response) => {
+const updateOtherSpare = async (req: Request, res: Response) => {
   try {
-    const { name, carModel, category, price, km, description } = req.body;
+    const { name, carModel, category, price, description } = req.body;
     const photoFile = (req as MulterRequest).file;
 
-    // Find the spare motor
-    const spareMotor = await prisma.spareMotor.findUnique({
+    const item = await prisma.other.findUnique({
       where: { id: req.params.id },
     });
 
-    if (!spareMotor) {
-      res.status(404).json({ error: "Spare motor not found" });
+    if (!item) {
+      res.status(404).json({ error: "Other spare item not found" });
       return;
     }
 
-    // Build update data
     const updateData: {
       name?: string;
       carModel?: string;
       category?: Category;
       price?: number;
-      km?: number;
       description?: string;
       photo?: Uint8Array<ArrayBuffer>;
     } = {};
@@ -171,7 +158,6 @@ const updateSpareMotor = async (req: Request, res: Response) => {
       updateData.carModel = String(carModel).toUpperCase();
     if (category !== undefined) updateData.category = category as Category;
     if (price !== undefined) updateData.price = Number(price);
-    if (km !== undefined) updateData.km = Number(km);
     if (description !== undefined) updateData.description = description;
     if (photoFile) updateData.photo = fileToPhotoBytes(photoFile.buffer);
 
@@ -182,63 +168,56 @@ const updateSpareMotor = async (req: Request, res: Response) => {
       return;
     }
 
-    // Update the spare motor
-    const updatedItem = await prisma.spareMotor.update({
+    const updatedItem = await prisma.other.update({
       where: { id: req.params.id },
       data: updateData,
     });
 
+    const { photo: _photo, ...rest } = updatedItem;
     res.status(200).json({
       status: "success",
       data: {
-        spareMotor: {
-          id: updatedItem.id,
-          name: updatedItem.name,
-          carModel: updatedItem.carModel,
-          category: updatedItem.category,
-          price: updatedItem.price,
-          km: updatedItem.km,
-          description: updatedItem.description,
-          createdAt: updatedItem.createdAt,
+        otherSpare: {
+          ...rest,
           photoUrl: `${req.protocol}://${req.get("host")}${req.baseUrl}/${updatedItem.id}/photo`,
         },
       },
     });
   } catch (error) {
-    console.error("Error updating spare motor:", error);
-    res.status(500).json({ error: "Failed to update spare motor" });
+    console.error("Error updating other spare:", error);
+    res.status(500).json({ error: "Failed to update other spare" });
   }
 };
 
-const deleteSpareMotor = async (req: Request, res: Response) => {
+const deleteOtherSpare = async (req: Request, res: Response) => {
   try {
-    const spareMotor = await prisma.spareMotor.findUnique({
+    const item = await prisma.other.findUnique({
       where: { id: req.params.id },
     });
 
-    if (!spareMotor) {
-      res.status(404).json({ error: "Spare motor not found" });
+    if (!item) {
+      res.status(404).json({ error: "Other spare item not found" });
       return;
     }
 
-    await prisma.spareMotor.delete({
+    await prisma.other.delete({
       where: { id: req.params.id },
     });
 
     res.status(200).json({
       status: "success",
-      message: "Spare motor deleted",
+      message: "Other spare item deleted",
     });
   } catch (error) {
-    console.error("Error deleting spare motor:", error);
-    res.status(500).json({ error: "Failed to delete spare motor" });
+    console.error("Error deleting other spare:", error);
+    res.status(500).json({ error: "Failed to delete other spare" });
   }
 };
 
 export {
-  getSpareMotors,
-  getSpareMotorPhoto,
-  addSpareMotor,
-  updateSpareMotor,
-  deleteSpareMotor,
+  getOtherSpares,
+  getOtherSparePhoto,
+  addOtherSpare,
+  updateOtherSpare,
+  deleteOtherSpare,
 };

@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+
 import { prisma } from "../../../prisma.js";
 import { Category } from "../../../generated/prisma/enums.js";
 
@@ -34,14 +35,13 @@ const detectImageType = (bytes: Uint8Array): string => {
   return "application/octet-stream";
 };
 
-const getSpareMotors = async (req: Request, res: Response) => {
+const getSpareTires = async (req: Request, res: Response) => {
   try {
-    const spareMotors = await prisma.spareMotor.findMany({
+    const tires = await prisma.tire.findMany({
       orderBy: { createdAt: "desc" },
     });
 
-    // Return a link to each stored photo rather than embedding the image bytes.
-    const results = spareMotors.map(({ photo, ...item }) => ({
+    const results = tires.map(({ photo, ...item }) => ({
       ...item,
       photoUrl: `${req.protocol}://${req.get("host")}${req.baseUrl}/${item.id}/photo`,
     }));
@@ -49,130 +49,119 @@ const getSpareMotors = async (req: Request, res: Response) => {
     res.status(200).json({
       status: "success",
       data: {
-        spareMotors: results,
+        spareTires: results,
       },
     });
   } catch (error) {
-    console.error("Error fetching spare motors:", error);
-    res.status(500).json({ error: "Failed to fetch spare motors" });
+    console.error("Error fetching spare tires:", error);
+    res.status(500).json({ error: "Failed to fetch spare tires" });
   }
 };
 
-/** Stream the stored binary photo bytes for a single spare motor. */
-const getSpareMotorPhoto = async (req: Request, res: Response) => {
+/** Stream the stored binary photo bytes for a single spare tire. */
+const getSpareTirePhoto = async (req: Request, res: Response) => {
   try {
-    const spareMotor = await prisma.spareMotor.findUnique({
+    const tire = await prisma.tire.findUnique({
       where: { id: req.params.id },
       select: { photo: true },
     });
 
-    if (!spareMotor) {
-      res.status(404).json({ error: "Spare motor not found" });
+    if (!tire) {
+      res.status(404).json({ error: "Spare tire not found" });
       return;
     }
 
-    const buffer = Buffer.from(spareMotor.photo);
-    res.setHeader("Content-Type", detectImageType(spareMotor.photo));
+    const buffer = Buffer.from(tire.photo);
+    res.setHeader("Content-Type", detectImageType(tire.photo));
     res.setHeader("Content-Length", buffer.length);
-    // Let clients cache the image; it is immutable per row id.
     res.setHeader("Cache-Control", "public, max-age=86400");
     res.send(buffer);
   } catch (error) {
-    console.error("Error fetching spare motor photo:", error);
-    res.status(500).json({ error: "Failed to fetch spare motor photo" });
+    console.error("Error fetching spare tire photo:", error);
+    res.status(500).json({ error: "Failed to fetch spare tire photo" });
   }
 };
 
-const addSpareMotor = async (req: Request, res: Response) => {
+const addSpareTire = async (req: Request, res: Response) => {
   try {
-    const { name, carModel, category, price, km, description } = req.body;
+    const { name, size, category, price, description, quantity } = req.body;
     const photoFile = (req as MulterRequest).file;
 
-    // multipart/form-data: the photo is submitted as an uploaded `photo` file
     if (!photoFile) {
       res.status(400).json({ error: "A photo image file is required" });
       return;
     }
 
     // Check if already added (unique by name)
-    const existing = await prisma.spareMotor.findFirst({
+    const existing = await prisma.tire.findFirst({
       where: { name: String(name).toUpperCase() },
     });
 
     if (existing) {
       res
         .status(400)
-        .json({ error: "Spare motor with this name already exists" });
+        .json({ error: "Spare tire with this name already exists" });
       return;
     }
 
-    const spareMotor = await prisma.spareMotor.create({
+    const tire = await prisma.tire.create({
       data: {
         name: String(name).toUpperCase(),
-        carModel: String(carModel).toUpperCase(),
+        size: Number(size),
         category: category as Category,
         price: Number(price),
-        km: Number(km),
         description,
+        quantity: Number(quantity),
         photo: fileToPhotoBytes(photoFile.buffer),
       },
     });
 
+    const { photo: _photo, ...rest } = tire;
     res.status(201).json({
       status: "success",
       data: {
-        spareMotor: {
-          id: spareMotor.id,
-          name: spareMotor.name,
-          carModel: spareMotor.carModel,
-          category: spareMotor.category,
-          price: spareMotor.price,
-          km: spareMotor.km,
-          description: spareMotor.description,
-          createdAt: spareMotor.createdAt,
-          photoUrl: `${req.protocol}://${req.get("host")}${req.baseUrl}/${spareMotor.id}/photo`,
+        spareTire: {
+          ...rest,
+          photoUrl: `${req.protocol}://${req.get("host")}${req.baseUrl}/${tire.id}/photo`,
         },
       },
     });
   } catch (error) {
-    console.error("Error adding spare motor:", error);
-    res.status(500).json({ error: "Failed to add spare motor" });
+    console.error("Error adding spare tire:", error);
+    res.status(500).json({ error: "Failed to add spare tire" });
   }
 };
 
-const updateSpareMotor = async (req: Request, res: Response) => {
+const updateSpareTire = async (req: Request, res: Response) => {
   try {
-    const { name, carModel, category, price, km, description } = req.body;
+    const { name, size, category, price, description, quantity } = req.body;
     const photoFile = (req as MulterRequest).file;
 
-    // Find the spare motor
-    const spareMotor = await prisma.spareMotor.findUnique({
+    const tire = await prisma.tire.findUnique({
       where: { id: req.params.id },
     });
 
-    if (!spareMotor) {
-      res.status(404).json({ error: "Spare motor not found" });
+    if (!tire) {
+      res.status(404).json({ error: "Spare tire not found" });
       return;
     }
 
-    // Build update data
     const updateData: {
       name?: string;
-      carModel?: string;
+      size?: number;
       category?: Category;
       price?: number;
-      km?: number;
       description?: string;
+      quantity?: number;
       photo?: Uint8Array<ArrayBuffer>;
     } = {};
 
     if (name !== undefined) updateData.name = String(name).toUpperCase();
-    if (carModel !== undefined)
-      updateData.carModel = String(carModel).toUpperCase();
+    if (size !== undefined) updateData.size = Number(size);
     if (category !== undefined) updateData.category = category as Category;
     if (price !== undefined) updateData.price = Number(price);
-    if (km !== undefined) updateData.km = Number(km);
     if (description !== undefined) updateData.description = description;
+    if (quantity !== undefined) updateData.quantity = Number(quantity);
     if (photoFile) updateData.photo = fileToPhotoBytes(photoFile.buffer);
 
     if (Object.keys(updateData).length === 0) {
@@ -182,63 +171,56 @@ const updateSpareMotor = async (req: Request, res: Response) => {
       return;
     }
 
-    // Update the spare motor
-    const updatedItem = await prisma.spareMotor.update({
+    const updatedItem = await prisma.tire.update({
       where: { id: req.params.id },
       data: updateData,
     });
 
+    const { photo: _photo, ...rest } = updatedItem;
     res.status(200).json({
       status: "success",
       data: {
-        spareMotor: {
-          id: updatedItem.id,
-          name: updatedItem.name,
-          carModel: updatedItem.carModel,
-          category: updatedItem.category,
-          price: updatedItem.price,
-          km: updatedItem.km,
-          description: updatedItem.description,
-          createdAt: updatedItem.createdAt,
+        spareTire: {
+          ...rest,
           photoUrl: `${req.protocol}://${req.get("host")}${req.baseUrl}/${updatedItem.id}/photo`,
         },
       },
     });
   } catch (error) {
-    console.error("Error updating spare motor:", error);
-    res.status(500).json({ error: "Failed to update spare motor" });
+    console.error("Error updating spare tire:", error);
+    res.status(500).json({ error: "Failed to update spare tire" });
   }
 };
 
-const deleteSpareMotor = async (req: Request, res: Response) => {
+const deleteSpareTire = async (req: Request, res: Response) => {
   try {
-    const spareMotor = await prisma.spareMotor.findUnique({
+    const tire = await prisma.tire.findUnique({
       where: { id: req.params.id },
     });
 
-    if (!spareMotor) {
-      res.status(404).json({ error: "Spare motor not found" });
+    if (!tire) {
+      res.status(404).json({ error: "Spare tire not found" });
       return;
     }
 
-    await prisma.spareMotor.delete({
+    await prisma.tire.delete({
       where: { id: req.params.id },
     });
 
     res.status(200).json({
       status: "success",
-      message: "Spare motor deleted",
+      message: "Spare tire deleted",
     });
   } catch (error) {
-    console.error("Error deleting spare motor:", error);
-    res.status(500).json({ error: "Failed to delete spare motor" });
+    console.error("Error deleting spare tire:", error);
+    res.status(500).json({ error: "Failed to delete spare tire" });
   }
 };
 
 export {
-  getSpareMotors,
-  getSpareMotorPhoto,
-  addSpareMotor,
-  updateSpareMotor,
-  deleteSpareMotor,
+  getSpareTires,
+  getSpareTirePhoto,
+  addSpareTire,
+  updateSpareTire,
+  deleteSpareTire,
 };
