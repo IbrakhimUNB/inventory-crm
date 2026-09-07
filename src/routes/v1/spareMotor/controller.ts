@@ -2,6 +2,13 @@ import { Request, Response } from "express";
 import { prisma } from "../../../prisma.js";
 import { Category } from "../../../generated/prisma/enums.js";
 
+// `req.file` is populated by multer on multipart routes.
+type MulterRequest = Request & { file?: Express.Multer.File };
+
+/** Convert a binary Buffer from an uploaded file into a Prisma Bytes value. */
+const fileToPhotoBytes = (buffer: Buffer): Uint8Array<ArrayBuffer> =>
+  Uint8Array.from(buffer);
+
 /**
  * Helper to decode a base64 image string into a Buffer.
  * Accepts both a plain base64 string and a data-URL like
@@ -15,20 +22,40 @@ const parsePhotoBuffer = (photo: string): Uint8Array<ArrayBuffer> => {
 };
 
 /**
- * Helper to convert a stored Bytes value back to a base64 string for JSON responses.
+ * Guess the image Content-Type from the leading bytes (magic number) of a
+ * stored photo so it can be served back to the browser correctly.
  */
-const photoToBase64 = (bytes: Uint8Array): string =>
-  Buffer.from(bytes).toString("base64");
-const getSpareMotors = async (_req: Request, res: Response) => {
+const detectImageType = (bytes: Uint8Array): string => {
+  const b = Buffer.from(bytes);
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff)
+    return "image/jpeg";
+  if (b.length >= 8 && b.toString("ascii", 0, 8) === "\x89PNG\r\n\x1a\n")
+    return "image/png";
+  if (
+    b.length >= 6 &&
+    (b.toString("ascii", 0, 6) === "GIF87a" ||
+      b.toString("ascii", 0, 6) === "GIF89a")
+  )
+    return "image/gif";
+  if (
+    b.length >= 12 &&
+    b.subarray(0, 4).toString("ascii") === "RIFF" &&
+    b.subarray(8, 12).toString("ascii") === "WEBP"
+  )
+    return "image/webp";
+  return "application/octet-stream";
+};
+
+const getSpareMotors = async (req: Request, res: Response) => {
   try {
     const spareMotors = await prisma.spareMotor.findMany({
       orderBy: { createdAt: "desc" },
     });
 
-    // Convert binary photos to base64 so clients can render them
+    // Return a link to each stored photo rather than embedding the image bytes.
     const results = spareMotors.map(({ photo, ...item }) => ({
       ...item,
-      photo: photoToBase64(photo),
+      photoUrl: `${req.protocol}://${req.get("host")}${req.baseUrl}/${item.id}/photo`,
     }));
 
     res.status(200).json({
@@ -43,10 +70,41 @@ const getSpareMotors = async (_req: Request, res: Response) => {
   }
 };
 
+/** Stream the stored binary photo bytes for a single spare motor. */
+const getSpareMotorPhoto = async (req: Request, res: Response) => {
+  try {
+    const spareMotor = await prisma.spareMotor.findUnique({
+      where: { id: req.params.id },
+      select: { photo: true },
+    });
+
+    if (!spareMotor) {
+      res.status(404).json({ error: "Spare motor not found" });
+      return;
+    }
+
+    const buffer = Buffer.from(spareMotor.photo);
+    res.setHeader("Content-Type", detectImageType(spareMotor.photo));
+    res.setHeader("Content-Length", buffer.length);
+    // Let clients cache the image; it is immutable per row id.
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.send(buffer);
+  } catch (error) {
+    console.error("Error fetching spare motor photo:", error);
+    res.status(500).json({ error: "Failed to fetch spare motor photo" });
+  }
+};
+
 const addSpareMotor = async (req: Request, res: Response) => {
   try {
-    const { name, carModel, category, price, km, description, photo } =
-      req.body;
+    const { name, carModel, category, price, km, description } = req.body;
+    const photoFile = (req as MulterRequest).file;
+
+    // multipart/form-data: the photo is submitted as an uploaded `photo` file
+    if (!photoFile) {
+      res.status(400).json({ error: "A photo image file is required" });
+      return;
+    }
 
     // Check if already added (unique by name)
     const existing = await prisma.spareMotor.findFirst({
@@ -68,7 +126,7 @@ const addSpareMotor = async (req: Request, res: Response) => {
         price: Number(price),
         km: Number(km),
         description,
-        photo: parsePhotoBuffer(photo),
+        photo: fileToPhotoBytes(photoFile.buffer),
       },
     });
 
@@ -76,8 +134,15 @@ const addSpareMotor = async (req: Request, res: Response) => {
       status: "success",
       data: {
         spareMotor: {
-          ...spareMotor,
-          photo: photoToBase64(spareMotor.photo),
+          id: spareMotor.id,
+          name: spareMotor.name,
+          carModel: spareMotor.carModel,
+          category: spareMotor.category,
+          price: spareMotor.price,
+          km: spareMotor.km,
+          description: spareMotor.description,
+          createdAt: spareMotor.createdAt,
+          photoUrl: `${req.protocol}://${req.get("host")}${req.baseUrl}/${spareMotor.id}/photo`,
         },
       },
     });
@@ -132,8 +197,15 @@ const updateSpareMotor = async (req: Request, res: Response) => {
       status: "success",
       data: {
         spareMotor: {
-          ...updatedItem,
-          photo: photoToBase64(updatedItem.photo),
+          id: updatedItem.id,
+          name: updatedItem.name,
+          carModel: updatedItem.carModel,
+          category: updatedItem.category,
+          price: updatedItem.price,
+          km: updatedItem.km,
+          description: updatedItem.description,
+          createdAt: updatedItem.createdAt,
+          photoUrl: `${req.protocol}://${req.get("host")}${req.baseUrl}/${updatedItem.id}/photo`,
         },
       },
     });
@@ -168,4 +240,10 @@ const deleteSpareMotor = async (req: Request, res: Response) => {
   }
 };
 
-export { getSpareMotors, addSpareMotor, updateSpareMotor, deleteSpareMotor };
+export {
+  getSpareMotors,
+  getSpareMotorPhoto,
+  addSpareMotor,
+  updateSpareMotor,
+  deleteSpareMotor,
+};

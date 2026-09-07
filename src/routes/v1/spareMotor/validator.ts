@@ -7,10 +7,14 @@ const categorySchema = z.enum(["Tire", "Other", "Motor"], {
   }),
 });
 
-// A reusable photo string: either a plain base64 string or a data-URL
+// A base64 photo string, used by the update endpoint.
+// Note: the add endpoint takes `photo` as an uploaded image file instead, so it
+// is omitted from addSpareMotorSchema (it is parsed/validated by multer).
 const photoSchema = z.string().min(1);
 
-// Schema for POST / - adding a spare motor
+// Schema for POST /add - adding a spare motor.
+// The `photo` is an uploaded `multipart/form-data` file (handled by multer in
+// req.file) and is therefore intentionally not part of the scalar body schema.
 export const addSpareMotorSchema = z.object({
   name: z.string().min(1),
   carModel: z.string().min(1),
@@ -18,7 +22,6 @@ export const addSpareMotorSchema = z.object({
   price: z.coerce.number().int().nonnegative(),
   km: z.coerce.number().int().nonnegative(),
   description: z.string().min(1),
-  photo: photoSchema,
 });
 
 // Schema for PATCH /:id - updating a spare motor (all fields optional)
@@ -35,6 +38,7 @@ export const updateSpareMotorSchema = z
   .refine((v) => Object.keys(v).length > 0, {
     message: "At least one field is required to update",
   });
+
 // Validates the :id URL param used by update/delete routes
 export const idParamSchema = z.object({
   id: z.string().uuid(),
