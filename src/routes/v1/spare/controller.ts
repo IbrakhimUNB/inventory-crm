@@ -128,15 +128,6 @@ const addSpare = async (req: Request, res: Response) => {
         break;
       }
       case "other": {
-        const existing = await prisma.other.findFirst({
-          where: { name },
-        });
-        if (existing) {
-          res
-            .status(400)
-            .json({ error: "Other spare item with this name already exists" });
-          return;
-        }
         created = await prisma.other.create({
           data: {
             name,

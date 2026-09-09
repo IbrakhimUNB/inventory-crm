@@ -91,18 +91,6 @@ const addOtherSpare = async (req: Request, res: Response) => {
       return;
     }
 
-    // Check if already added (unique by name)
-    const existing = await prisma.other.findFirst({
-      where: { name: String(name).toUpperCase() },
-    });
-
-    if (existing) {
-      res
-        .status(400)
-        .json({ error: "Other spare item with this name already exists" });
-      return;
-    }
-
     const item = await prisma.other.create({
       data: {
         name: String(name).toUpperCase(),
